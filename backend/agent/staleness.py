@@ -93,21 +93,85 @@ def mark_validated(entity: str, validated_by: str) -> None:
 
 def status(entity: str) -> EntityStatus:
     with closing(_connect()) as conn:
+
         row = conn.execute(
             "SELECT last_validated_at, validated_by, last_code_changed_at "
             "FROM entity_state WHERE entity = ?",
             (entity,),
         ).fetchone()
 
-    if row is None or row[0] is None:
-        return EntityStatus(entity, "INFERRED", None, None, row[2] if row else None)
+        # ----------------------------------------------------
+        # If this entity has never been tracked before,
+        # create an INFERRED entry for it.
+        # ----------------------------------------------------
+        if row is None:
 
-    last_validated_at, validated_by, last_code_changed_at = row
-    if last_code_changed_at and last_code_changed_at > last_validated_at:
+            conn.execute(
+                """
+                INSERT INTO entity_state (
+                    entity,
+                    last_validated_at,
+                    validated_by,
+                    last_code_changed_at,
+                    last_explanation
+                )
+                VALUES (?, NULL, NULL, NULL, NULL)
+                """,
+                (entity,),
+            )
+
+            conn.commit()
+
+            return EntityStatus(
+                entity=entity,
+                badge="INFERRED",
+                last_validated_at=None,
+                validated_by=None,
+                last_code_changed_at=None,
+            )
+
+        last_validated_at, validated_by, last_code_changed_at = row
+
+    # --------------------------------------------------------
+    # Never validated by a human
+    # --------------------------------------------------------
+
+    if last_validated_at is None:
+
+        return EntityStatus(
+            entity=entity,
+            badge="INFERRED",
+            last_validated_at=None,
+            validated_by=None,
+            last_code_changed_at=last_code_changed_at,
+        )
+
+    # --------------------------------------------------------
+    # Code changed after human validation
+    # --------------------------------------------------------
+
+    if (
+        last_code_changed_at
+        and last_code_changed_at > last_validated_at
+    ):
+
         badge = "STALE"
+
+    # --------------------------------------------------------
+    # Human validated and code has not changed
+    # --------------------------------------------------------
+
     else:
+
         badge = "CONFIRMED"
-    return EntityStatus(entity, badge, last_validated_at, validated_by, last_code_changed_at)
+
+    return EntityStatus(
+        entity=entity,
+        badge=badge,
+        last_validated_at=last_validated_at,
+        validated_by=validated_by,
+        last_code_changed_at=last_code_changed_at,
+    )
 
 
 def all_entities() -> list[EntityStatus]:
