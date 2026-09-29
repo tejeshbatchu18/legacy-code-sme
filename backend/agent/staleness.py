@@ -125,6 +125,15 @@ def status(entity: str) -> EntityStatus:
         validated_by,
         last_code_changed_at,
     )
+  def entity_exists(entity: str) -> bool:
+    """Return True only if the entity was actually indexed from the codebase."""
+    with closing(_connect()) as conn:
+        row = conn.execute(
+            "SELECT 1 FROM entity_state WHERE entity = ?",
+            (entity,),
+        ).fetchone()
+
+    return row is not None
 
 def all_entities() -> list[EntityStatus]:
     with closing(_connect()) as conn:
