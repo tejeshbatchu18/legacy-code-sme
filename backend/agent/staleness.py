@@ -125,8 +125,8 @@ def status(entity: str) -> EntityStatus:
         validated_by,
         last_code_changed_at,
     )
-  def entity_exists(entity: str) -> bool:
-    """Return True only if the entity was actually indexed from the codebase."""
+def entity_exists(entity: str) -> bool:
+    """Return True only when the entity is actually present in our indexed codebase."""
     with closing(_connect()) as conn:
         row = conn.execute(
             "SELECT 1 FROM entity_state WHERE entity = ?",
